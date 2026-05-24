@@ -1,0 +1,139 @@
+--- git status ---
+On branch dev-amp-dataset
+Your branch is up to date with 'origin/dev-amp-dataset'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/__init__.py
+	modified:   source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/agents/rsl_rl_ppo_cfg.py
+	modified:   source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_env_cfg.py
+	modified:   source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_p2p_env.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	DRL (3).pdf
+	actuatorNet.pdf
+	scripts/uan/
+	source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_uan_env.py
+	source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_uan_env_cfg.py
+	source/physical_locomotion_ai/physical_locomotion_ai/uan/
+	uan_gaussian_20260427_143236.csv
+	uan_sine_20260427_142543.csv
+	uan_square_20260427_142913.csv
+
+no changes added to commit (use "git add" and/or "git commit -a") 
+
+
+--- git diff ---
+diff --git a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/__init__.py b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/__init__.py
+index ed419d4..6e495ac 100644
+--- a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/__init__.py
++++ b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/__init__.py
+@@ -31,4 +31,14 @@ gym.register(
+         "env_cfg_entry_point": f"{__name__}.one_leg_env_cfg:OneLegP2PEnvCfg",
+         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:OneLegFlatPPORunnerCfg",
+     },
+-)
+\ No newline at end of file
++)
++
++gym.register(
++    id="oneleg-uan",
++    entry_point=f"{__name__}.one_leg_uan_env:OneLegUANCalibrationTask",
++    disable_env_checker=True,
++    kwargs={
++        "env_cfg_entry_point": f"{__name__}.one_leg_uan_env_cfg:OneLegUANEnvCfg",
++        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:OneLegUANPPORunnerCfg",
++    },
++)
+diff --git a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/agents/rsl_rl_ppo_cfg.py b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/agents/rsl_rl_ppo_cfg.py
+index d830689..d65cb12 100644
+--- a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/agents/rsl_rl_ppo_cfg.py
++++ b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/agents/rsl_rl_ppo_cfg.py
+@@ -38,6 +38,36 @@ class OneLegFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+     )
+ 
+ 
++@configclass
++class OneLegUANPPORunnerCfg(RslRlOnPolicyRunnerCfg):
++    num_steps_per_env = 32
++    max_iterations = 5000
++    save_interval = 100
++    experiment_name = "one_leg_uan"
++    empirical_normalization = True
++    clip_actions = 1.0
++    policy = RslRlPpoActorCriticCfg(
++        init_noise_std=0.5,
++        actor_hidden_dims=[128, 128],
++        critic_hidden_dims=[128, 128],
++        activation="elu",
++    )
++    algorithm = RslRlPpoAlgorithmCfg(
++        value_loss_coef=1.0,
++        use_clipped_value_loss=True,
++        clip_param=0.2,
++        entropy_coef=0.001,
++        num_learning_epochs=5,
++        num_mini_batches=4,
++        learning_rate=5.0e-4,
++        schedule="adaptive",
++        gamma=0.99,
++        lam=0.95,
++        desired_kl=0.01,
++        max_grad_norm=1.0,
++    )
++
++
+ # @configclass
+ # class AnymalDFlatPPzORunnerCfg(AnymalDRoughPPORunnerCfg):
+ #     def __post_init__(self):
+diff --git a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_env_cfg.py b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_env_cfg.py
+index 6f1061c..63db444 100644
+--- a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_env_cfg.py
++++ b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_env_cfg.py
+@@ -53,7 +53,7 @@ class OneLegEnvCfg(DirectRLEnvCfg):
+     decimation = 4 # controlFrequencyInv
+     episode_length_s = 20 #30
+     action_space = 3
+-    observation_space = 48
++    observation_space = 11
+     state_space = 0
+ 
+     # action_space = gym.spaces.Box(
+@@ -156,7 +156,7 @@ class OneLegP2PEnvCfg(DirectRLEnvCfg):
+     decimation = 4 # controlFrequencyInv
+     episode_length_s = 30 #30
+     action_space = 3
+-    observation_space = 48
++    observation_space = 13
+     state_space = 0
+ 
+     # action_space = gym.spaces.Box(
+@@ -271,4 +271,4 @@ class OneLegP2PEnvCfg(DirectRLEnvCfg):
+     # distance_weight = 7.5
+ 
+     target_threshold = 0.03
+-        
+\ No newline at end of file
++        
+diff --git a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_p2p_env.py b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_p2p_env.py
+index 940c274..c4e27f3 100644
+--- a/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_p2p_env.py
++++ b/source/physical_locomotion_ai/physical_locomotion_ai/tasks/leg_locomotion/one_leg_p2p_env.py
+@@ -189,7 +189,7 @@ class OneLegP2PTask(DirectRLEnv):
+ 
+         self.robot_pos_x = self.robot.data.joint_pos[:,self.robot.find_joints("linear_left_right")[0]] # get position of Linear Left Right
+         self.robot_pos_y = self.robot.data.joint_pos[:,self.robot.find_joints("linear_left_right")[0]]
+-        self.robotbody_pos_x = self.robot.data.body_link_pose_w[:, self.robot.find_bodies("linear_left_right_Link")[0], 0] # get position of Linear Left Right Body
++        self.robotbody_pos_x = self.robot.data.body_link_pos_w[:, self.robot.find_bodies("linear_left_right_Link")[0], 0] # get position of Linear Left Right Body
+         self.command_obs = self.commands[:, 0].unsqueeze(-1) - self.robotbody_pos_x # Command X relative to end effector X
+         reach = torch.norm(self.command_obs, dim=1).squeeze(-1) < 0.03
+         self.C_frc = torch.where(reach, torch.zeros_like(self.C_frc), self.C_frc)
+@@ -490,4 +490,4 @@ class OneLegP2PTask(DirectRLEnv):
+         return foot_status
+ 
+ def normalize_angle(x):
+-    return torch.atan2(torch.sin(x), torch.cos(x))
+\ No newline at end of file
++    return torch.atan2(torch.sin(x), torch.cos(x))

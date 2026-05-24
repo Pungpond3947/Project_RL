@@ -1,0 +1,5 @@
+[
+    "real_data/exp2_subsets/p100/uan_exp2_gaussian_20260523_162921.csv",
+    "real_data/exp2_subsets/p100/uan_exp2_sine_20260523_160212.csv",
+    "real_data/exp2_subsets/p100/uan_exp2_square_20260523_161601.csv",
+]

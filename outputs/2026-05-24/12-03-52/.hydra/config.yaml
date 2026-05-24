@@ -1,0 +1,284 @@
+env:
+  viewer:
+    eye:
+    - 5.0
+    - 5.0
+    - 3.0
+    lookat:
+    - 0.0
+    - 0.0
+    - 0.0
+    cam_prim_path: /OmniverseKit_Persp
+    resolution:
+    - 1280
+    - 720
+    origin_type: world
+    env_index: 0
+    asset_name: null
+    body_name: null
+  sim:
+    physics_prim_path: /physicsScene
+    device: cuda:0
+    dt: 0.005
+    render_interval: 2
+    gravity:
+    - 0.0
+    - 0.0
+    - -9.81
+    enable_scene_query_support: false
+    use_fabric: true
+    physx:
+      solver_type: 1
+      min_position_iteration_count: 1
+      max_position_iteration_count: 16
+      min_velocity_iteration_count: 0
+      max_velocity_iteration_count: 0
+      enable_ccd: false
+      enable_stabilization: true
+      enable_enhanced_determinism: false
+      bounce_threshold_velocity: 0.2
+      friction_offset_threshold: 0.04
+      friction_correlation_distance: 0.025
+      gpu_max_rigid_contact_count: 8388608
+      gpu_max_rigid_patch_count: 163840
+      gpu_found_lost_pairs_capacity: 2097152
+      gpu_found_lost_aggregate_pairs_capacity: 33554432
+      gpu_total_aggregate_pairs_capacity: 2097152
+      gpu_collision_stack_size: 67108864
+      gpu_heap_capacity: 67108864
+      gpu_temp_buffer_capacity: 16777216
+      gpu_max_num_partitions: 8
+      gpu_max_soft_body_contacts: 1048576
+      gpu_max_particle_contacts: 1048576
+    physics_material:
+      func: isaaclab.sim.spawners.materials.physics_materials:spawn_rigid_body_material
+      static_friction: 1.0
+      dynamic_friction: 1.0
+      restitution: 0.0
+      improve_patch_friction: true
+      friction_combine_mode: average
+      restitution_combine_mode: average
+      compliant_contact_stiffness: 0.0
+      compliant_contact_damping: 0.0
+    render:
+      enable_translucency: null
+      enable_reflections: null
+      enable_global_illumination: null
+      antialiasing_mode: null
+      enable_dlssg: null
+      enable_dl_denoiser: null
+      dlss_mode: null
+      enable_direct_lighting: null
+      samples_per_pixel: null
+      enable_shadows: null
+      enable_ambient_occlusion: null
+  ui_window_class_type: isaaclab.envs.ui.base_env_window:BaseEnvWindow
+  seed: null
+  decimation: 2
+  is_finite_horizon: false
+  episode_length_s: 10.0
+  scene:
+    num_envs: 4096
+    env_spacing: 4.0
+    lazy_sensor_update: true
+    replicate_physics: true
+    filter_collisions: true
+  events: null
+  observation_space: '{"type": "python", "space": "Box", "value": 300}'
+  num_observations: null
+  state_space: '{"type": "python", "space": "Box", "value": 0}'
+  num_states: null
+  observation_noise_model: null
+  action_space: '{"type": "python", "space": "Box", "value": 3}'
+  num_actions: null
+  action_noise_model: null
+  rerender_on_reset: false
+  wait_for_textures: true
+  robot:
+    class_type: isaaclab.assets.articulation.articulation:Articulation
+    prim_path: /World/envs/env_.*/Robot
+    spawn:
+      func: isaaclab.sim.spawners.from_files.from_files:spawn_from_usd
+      visible: true
+      semantic_tags: null
+      copy_from_source: false
+      mass_props: null
+      deformable_props: null
+      rigid_props:
+        rigid_body_enabled: null
+        kinematic_enabled: null
+        disable_gravity: false
+        linear_damping: null
+        angular_damping: null
+        max_linear_velocity: null
+        max_angular_velocity: null
+        max_depenetration_velocity: 10.0
+        max_contact_impulse: null
+        enable_gyroscopic_forces: true
+        retain_accelerations: null
+        solver_position_iteration_count: null
+        solver_velocity_iteration_count: null
+        sleep_threshold: null
+        stabilization_threshold: null
+      collision_props: null
+      activate_contact_sensors: true
+      scale: null
+      articulation_props:
+        articulation_enabled: null
+        enabled_self_collisions: false
+        solver_position_iteration_count: 16
+        solver_velocity_iteration_count: 0
+        sleep_threshold: 0.005
+        stabilization_threshold: 0.001
+        fix_root_link: null
+      fixed_tendons_props: null
+      joint_drive_props: null
+      visual_material_path: material
+      visual_material: null
+      usd_path: /home/khunanon/physicalAI_2026-master/source/physical_locomotion_ai/physical_locomotion_ai/assets/models/one_leggy8.usd
+      variants: null
+    init_state:
+      pos:
+      - 0.0
+      - 0.0
+      - 0.7
+      rot:
+      - 0.707
+      - 0.0
+      - 0.0
+      - 0.707
+      lin_vel:
+      - 0.0
+      - 0.0
+      - 0.0
+      ang_vel:
+      - 0.0
+      - 0.0
+      - 0.0
+      joint_pos:
+        linear_left_right: 0.1
+      joint_vel:
+        .*: 0.0
+    collision_group: 0
+    debug_vis: false
+    soft_joint_pos_limit_factor: 1.0
+    actuators:
+      body:
+        class_type: isaaclab.actuators.actuator_pd:ImplicitActuator
+        joint_names_expr:
+        - .*_joint
+        effort_limit: null
+        velocity_limit: null
+        effort_limit_sim: null
+        velocity_limit_sim: null
+        stiffness: 50.0
+        damping: 1.0
+        armature: null
+        friction: null
+  per_step_observation_dim: 15
+  history_len: 20
+  terrain:
+    class_type: isaaclab.terrains.terrain_importer:TerrainImporter
+    collision_group: -1
+    prim_path: /World/ground
+    num_envs: 1
+    terrain_type: plane
+    terrain_generator: null
+    usd_path: null
+    env_spacing: null
+    visual_material:
+      func: isaaclab.sim.spawners.materials.visual_materials:spawn_preview_surface
+      diffuse_color:
+      - 0.0
+      - 0.0
+      - 0.0
+      emissive_color:
+      - 0.0
+      - 0.0
+      - 0.0
+      roughness: 0.5
+      metallic: 0.0
+      opacity: 1.0
+    physics_material:
+      func: isaaclab.sim.spawners.materials.physics_materials:spawn_rigid_body_material
+      static_friction: 1.0
+      dynamic_friction: 1.0
+      restitution: 0.0
+      improve_patch_friction: true
+      friction_combine_mode: average
+      restitution_combine_mode: average
+      compliant_contact_stiffness: 0.0
+      compliant_contact_damping: 0.0
+    max_init_terrain_level: null
+    debug_vis: false
+  actuated_joint_names:
+  - hip_joint
+  - knee_joint
+  - ankle_joint
+  dataset_paths:
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg1-1.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg24-24.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg47-47.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg71-71.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg94-94.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg117-117.csv
+  - real_data/exp2_subsets/p005/uan_exp2_gaussian_20260523_162921_p005_seg140-140.csv
+  - real_data/exp2_subsets/p005/uan_exp2_sine_20260523_160212_p005_seg0-0.csv
+  - real_data/exp2_subsets/p005/uan_exp2_sine_20260523_160212_p005_seg23-23.csv
+  - real_data/exp2_subsets/p005/uan_exp2_sine_20260523_160212_p005_seg47-47.csv
+  - real_data/exp2_subsets/p005/uan_exp2_sine_20260523_160212_p005_seg70-70.csv
+  - real_data/exp2_subsets/p005/uan_exp2_square_20260523_161601_p005_seg0-0.csv
+  - real_data/exp2_subsets/p005/uan_exp2_square_20260523_161601_p005_seg23-23.csv
+  - real_data/exp2_subsets/p005/uan_exp2_square_20260523_161601_p005_seg47-47.csv
+  - real_data/exp2_subsets/p005/uan_exp2_square_20260523_161601_p005_seg70-70.csv
+  residual_effort_scale: 2.8
+  q_error_weight: 4.0
+  dq_error_weight: 0.5
+  smoothness_weight: 0.02
+  effort_weight: 0.001
+  q_error_std: 0.05
+  dq_error_std: 0.5
+agent:
+  seed: 42
+  device: cuda:0
+  num_steps_per_env: 32
+  max_iterations: 5000
+  empirical_normalization: true
+  policy:
+    class_name: ActorCritic
+    init_noise_std: 0.5
+    noise_std_type: scalar
+    actor_hidden_dims:
+    - 128
+    - 128
+    critic_hidden_dims:
+    - 128
+    - 128
+    activation: elu
+  algorithm:
+    class_name: PPO
+    value_loss_coef: 1.0
+    use_clipped_value_loss: true
+    clip_param: 0.2
+    entropy_coef: 0.001
+    num_learning_epochs: 5
+    num_mini_batches: 4
+    learning_rate: 0.0005
+    schedule: adaptive
+    gamma: 0.99
+    lam: 0.95
+    desired_kl: 0.01
+    max_grad_norm: 1.0
+    normalize_advantage_per_mini_batch: false
+    symmetry_cfg: null
+    rnd_cfg: null
+  clip_actions: 1.0
+  save_interval: 100
+  experiment_name: one_leg_uan_deploy
+  run_name: ''
+  logger: tensorboard
+  neptune_project: isaaclab
+  wandb_project: isaaclab
+  resume: false
+  load_run: .*
+  load_checkpoint: model_.*.pt

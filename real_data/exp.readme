@@ -1,0 +1,426 @@
+# Exp Readme: 5 Experiments for FRA503 UAN Sim-to-Real Project
+
+เอกสารนี้สรุปการทดลองทั้ง 5 อันจาก `FRA503_DRL_FINAL.pdf` ให้ผูกกับ workspace ปัจจุบัน ซึ่งตอนนี้เป็น ROS2 data-collection workspace สำหรับ one-leg rig:
+
+- `data_collect/scripts/command_pub.py`: เก็บ train excitation data เช่น sine, square, gaussian
+- `data_collect/scripts/command_pub_test.py`: เก็บ test/OOD trajectory เช่น chirp, triangle, multisine
+- `data_collect/scripts/bi_direction.py`: สร้าง CPG walking command
+- `data_collect/scripts/walk_data_collect.py`: record-only logger สำหรับเดินลอยอากาศและเดิน contact
+
+เป้าหมายหลักคือพิสูจน์ว่า UAN ทำให้ simulator replay พฤติกรรมของขาจริงได้ใกล้ขึ้น โดยเฉพาะตอนมี contact กับพื้น
+
+---
+
+## Common CSV Schema
+
+ทุก experiment ควรเก็บข้อมูลเป็น transition format เดียวกัน:
+
+```text
+t,
+q_0, q_1, q_2,
+dq_0, dq_1, dq_2,
+tau_0, tau_1, tau_2,
+cmd_0, cmd_1, cmd_2,
+q_next_0, q_next_1, q_next_2,
+dq_next_0, dq_next_1, dq_next_2
+```
+
+ความหมาย:
+
+- `q_i`: joint position ตอน state ปัจจุบัน
+- `dq_i`: joint velocity ตอน state ปัจจุบัน
+- `tau_i`: effort จาก `/joint_states.effort` ซึ่งใน rig นี้คือ current คูณ torque constant หรือ torque estimate
+- `cmd_i`: command ที่ส่งเข้า `/position_controller/commands`
+- `q_next_i`, `dq_next_i`: state ถัดไปหลังผ่านไปหนึ่ง logging tick
+
+Metadata ที่ควรจดเพิ่มนอก CSV ทุกครั้ง:
+
+- วันที่ เวลา ชื่อไฟล์
+- condition: `air`, `contact`, `loaded`, `unloaded`
+- home pose / sethome ที่ใช้
+- control rate เช่น 100 Hz
+- พื้นผิวที่เดิน เช่น table, foam, rubber mat
+- load หรือ weight ที่ติดเพิ่ม ถ้ามี
+- ความเร็ว/รูปแบบ gait ถ้าใช้ CPG
+- หมายเหตุ safety เช่น motor ร้อน, slip, impact แรง, command สั่น
+
+---
+
+## Experiment 1: Sweet Spot for Data
+
+### คืออะไร
+
+ทดลองว่า UAN ต้องใช้ข้อมูลจริงมากแค่ไหนถึงจะพอ และข้อมูลควรหลากหลายแค่ไหน
+
+จาก proposal แบ่งเป็นสองคำถาม:
+
+- Time: ต้องเก็บ 5 นาทีพอไหม หรือควรเก็บ 30 นาที
+- Variety: ต้องเก็บทุกความถี่/ทุก amplitude ไหม หรือเก็บบางจุดแล้วให้ model interpolate ได้
+
+### ทำไปทำไม
+
+การเก็บข้อมูลจากหุ่นจริงมีต้นทุนสูง เสี่ยง hardware สึก และใช้เวลา ถ้ารู้ว่าเก็บแค่ระดับไหนพอ จะทำให้ pipeline ใช้งานจริงง่ายขึ้น
+
+### ต้องเก็บอะไรจากหุ่นจริง
+
+ชุด excitation สำหรับ train:
+
+- sine train
+- square train
+- gaussian train
+
+แนะนำให้เก็บเป็นหลายขนาดเวลา:
+
+```text
+short   : 5 min
+medium  : 10-15 min
+long    : 30 min
+```
+
+และหลายระดับ variety:
+
+```text
+low variety    : amplitude/frequency น้อยชุด
+medium variety : ชุดที่ใช้อยู่ใน command_pub.py
+high variety   : เพิ่ม gaussian phases + หลาย amplitude
+```
+
+คำสั่งตัวอย่าง:
+
+```bash
+ros2 run data_collect command_pub.py --ros-args -p signal_type:=sine
+ros2 run data_collect command_pub.py --ros-args -p signal_type:=square
+ros2 run data_collect command_pub.py --ros-args -p signal_type:=gaussian
+```
+
+### Eval data ที่ต้องแยกไว้
+
+ต้องมี validation/test ที่ไม่เอาไป train:
+
+- `uan_test_chirp_*.csv`
+- `uan_test_triangle_*.csv`
+- `uan_test_multisine_*.csv`
+- `uan_walk_contact_test*.csv`
+
+### Metric ที่ต้องรายงาน
+
+- `q_rmse_mean`
+- `dq_rmse_mean`
+- `q_rmse_0`, `q_rmse_1`, `q_rmse_2`
+- training curve เทียบจำนวนนาทีข้อมูล
+- improvement vs default simulator
+
+---
+
+## Experiment 2: Does the UAN Actually Work?
+
+### คืออะไร
+
+ทดลองหลักที่สุด: default simulator เทียบกับ simulator ที่ใส่ UAN ว่า replay trajectory จริงได้ใกล้ hardware กว่าหรือไม่
+
+### ทำไปทำไม
+
+ถ้า UAN-enhanced simulator ไม่ใกล้ real hardware มากกว่า default simulator แปลว่า method นี้ยังไม่ผ่าน core proof
+
+### ต้องเก็บอะไรจากหุ่นจริง
+
+ต้องมี train set และ hold-out eval set:
+
+Train set:
+
+- `uan_sine_train*.csv`
+- `uan_square_train*.csv`
+- `uan_gaussian_train*.csv`
+
+Eval set:
+
+- `uan_test_chirp*.csv`
+- `uan_test_triangle*.csv`
+- `uan_test_multisine*.csv`
+- `uan_walk_contact_test*.csv`
+
+เก็บ test trajectory ด้วย:
+
+```bash
+ros2 run data_collect command_pub_test.py --ros-args -p signal_type:=chirp
+ros2 run data_collect command_pub_test.py --ros-args -p signal_type:=triangle
+ros2 run data_collect command_pub_test.py --ros-args -p signal_type:=multisine
+```
+
+หรือใช้ suite เดียว:
+
+```bash
+ros2 run data_collect command_pub_test.py --ros-args -p signal_type:=test_suite
+```
+
+### สิ่งที่ต้องเปรียบเทียบใน sim
+
+ใช้ command sequence เดียวกัน replay 3 แบบ:
+
+```text
+real hardware
+default simulator / zero residual
+UAN-enhanced simulator
+```
+
+### Metric ที่ต้องรายงาน
+
+- `q_rmse_mean` ของ default vs UAN
+- `dq_rmse_mean` ของ default vs UAN
+- plot `cmd`, `real_q`, `sim_q_default`, `sim_q_uan`
+- residual torque RMS จาก UAN
+- long rollout drift
+
+---
+
+## Experiment 3: Surprise Test / Generalization
+
+### คืออะไร
+
+ทดสอบว่า UAN เรียน actuator physics จริง หรือแค่จำ trajectory ใน train set
+
+ตัวอย่างจาก proposal:
+
+- train ด้วย smooth repetitive sine
+- test ด้วย fast jerky kick หรือ step command
+
+### ทำไปทำไม
+
+ตอนหุ่นเดินจริง การเคลื่อนที่และ contact อาจไม่เหมือนข้อมูล train ถ้า UAN จำข้อมูลเฉย ๆ มันจะพังเมื่อเจอ trajectory แปลกใหม่
+
+### ต้องเก็บอะไรจากหุ่นจริง
+
+Train:
+
+- sine-only หรือ smooth-only dataset
+
+Test/OOD:
+
+- chirp
+- triangle
+- multisine
+- safe step/kick command ถ้าเพิ่ม script ได้
+- walk contact ที่ไม่เคยใช้ train
+
+ตอนนี้ workspace มี OOD test เบื้องต้นผ่าน:
+
+```bash
+ros2 run data_collect command_pub_test.py --ros-args -p signal_type:=test_suite
+```
+
+ถ้าจะทำให้ตรง proposal มากขึ้น ควรเพิ่ม safe step/kick test signal ที่:
+
+- amplitude ไม่เกิน safe range
+- frequency/change rate ไม่เกิน 2 Hz
+- มี return-home ก่อน/หลังทุก kick
+
+### Metric ที่ต้องรายงาน
+
+- error บน train-like trajectory
+- error บน unseen/OOD trajectory
+- ratio: OOD error / train-like error
+- plot ช่วงที่ command เปลี่ยนเร็ว เช่น step edge, chirp high-frequency, touchdown
+
+---
+
+## Experiment 4: Goldfish Test / History Length
+
+### คืออะไร
+
+ทดลองว่า UAN ต้องมี memory ย้อนหลังยาวแค่ไหนถึงจะจับ lag, backlash, friction ได้ดี
+
+ค่าที่ควรลอง:
+
+```text
+H = 1, 3, 5, 10, 20
+```
+
+### ทำไปทำไม
+
+history ยิ่งยาว input ยิ่งใหญ่ compute ยิ่งหนัก ถ้า `H=3` ดีพอ ก็อาจใช้ control loop เร็วขึ้นและ deploy ง่ายขึ้น แต่ถ้าต้องใช้ `H=20` แปลว่า actuator dynamics มี memory/latency ยาว
+
+### ต้องเก็บอะไรจากหุ่นจริง
+
+ไม่จำเป็นต้องเก็บ hardware data ใหม่ถ้ามี train/test split ดีแล้ว แต่ CSV ต้องมี:
+
+- `q`
+- `dq`
+- `cmd`
+- `tau`
+- timestamp ต่อเนื่อง
+- sampling rate สม่ำเสมอ เช่น 100 Hz
+
+Dataset ที่ควรใช้:
+
+- train excitation data ชุดเดียวกันทุก H
+- eval contact/test data ชุดเดียวกันทุก H
+
+### สิ่งที่ต้องควบคุม
+
+เปลี่ยนเฉพาะ history length เท่านั้น อย่าเปลี่ยน:
+
+- network size
+- train data
+- eval data
+- reward weights
+- train steps
+
+### Metric ที่ต้องรายงาน
+
+- `q_rmse_mean` vs H
+- `dq_rmse_mean` vs H
+- action RMS vs H
+- inference cost หรือ observation dimension
+
+ตัวอย่าง observation dimension สำหรับ 3 joints:
+
+```text
+obs_dim = H * 2 * 3
+H=1  -> 6
+H=3  -> 18
+H=20 -> 120
+```
+
+---
+
+## Experiment 5: Stress Test / Robustness
+
+### คืออะไร
+
+ทดสอบว่า UAN ยังทำนายได้ไหมเมื่อ hardware condition เปลี่ยน เช่น จากขาลอยอากาศไปเป็น contact กับพื้น หรือเพิ่ม load/weight
+
+### ทำไปทำไม
+
+ขา hexapod สลับระหว่าง:
+
+- swing phase: แทบไม่มี load
+- stance phase: รับน้ำหนักตัวหุ่นและ ground reaction force
+
+ถ้า UAN train จากขาลอยอย่างเดียวแต่ใช้กับ contact แล้ว error พุ่ง แปลว่าต้องมี contact-rich data ใน train set
+
+### ต้องเก็บอะไรจากหุ่นจริง
+
+Air walking:
+
+```bash
+ros2 run data_collect walk_data_collect.py --ros-args -p condition:=air -p duration_s:=300.0
+```
+
+อีก terminal:
+
+```bash
+ros2 run data_collect bi_direction.py
+```
+
+Contact walking:
+
+```bash
+ros2 run data_collect walk_data_collect.py --ros-args -p condition:=contact -p duration_s:=300.0
+```
+
+Loaded / weight shift:
+
+```bash
+ros2 run data_collect walk_data_collect.py --ros-args -p condition:=loaded_contact -p duration_s:=300.0
+```
+
+ควรเก็บอย่างน้อย:
+
+```text
+walk_air_slow_train
+walk_air_medium_train
+walk_contact_slow_train
+walk_contact_medium_train
+walk_contact_slow_test
+walk_contact_medium_test
+loaded_contact_test
+```
+
+### Metadata สำคัญสำหรับ stress test
+
+- น้ำหนักที่ติดเพิ่มกี่กรัม
+- ตำแหน่งที่ติดน้ำหนัก
+- พื้นผิวที่ใช้
+- gait speed / CPG parameter
+- motor temperature ถ้าวัดได้
+- current/effort peak
+- มี foot slip หรือ impact แรงไหม
+
+### Metric ที่ต้องรายงาน
+
+- train on air, eval on contact
+- train on contact, eval on air
+- train on mixed, eval on loaded contact
+- error ช่วง swing vs stance ถ้ามี contact label หรือแยกด้วย phase ได้
+- peak error ตอน touchdown
+
+---
+
+## Suggested Dataset Split
+
+ห้ามใช้ final test เลือก checkpoint
+
+```text
+train/
+  uan_sine_train*.csv
+  uan_square_train*.csv
+  uan_gaussian_train*.csv
+  uan_walk_air_train*.csv
+  uan_walk_contact_train*.csv
+
+validation/
+  uan_test_chirp_val*.csv
+  uan_test_triangle_val*.csv
+  uan_walk_contact_val*.csv
+
+final_test/
+  uan_test_multisine_final*.csv
+  uan_walk_contact_final*.csv
+  uan_loaded_contact_final*.csv
+```
+
+---
+
+## Final Report Table Template
+
+| Exp | Train Data | Eval Data | q RMSE | dq RMSE | Action RMS | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| Exp1-short | 5 min excitation | contact test | TBD | TBD | TBD | data efficiency |
+| Exp1-long | 30 min excitation | contact test | TBD | TBD | TBD | data efficiency |
+| Exp2-default | none | test suite | TBD | TBD | 0 | default sim |
+| Exp2-UAN | excitation train | test suite | TBD | TBD | TBD | core proof |
+| Exp3-sine-only | sine train | chirp/triangle/step | TBD | TBD | TBD | OOD |
+| Exp4-H3 | mixed train, H=3 | contact test | TBD | TBD | TBD | history |
+| Exp4-H20 | mixed train, H=20 | contact test | TBD | TBD | TBD | history |
+| Exp5-air | air train | contact test | TBD | TBD | TBD | load shift |
+| Exp5-mixed | air+contact train | loaded contact | TBD | TBD | TBD | robustness |
+
+---
+
+## Minimum Data to Collect Next
+
+ถ้าต้องทำให้ครบ 5 experiments แบบไม่บวมเกินไป ให้เก็บเพิ่มตามนี้:
+
+1. `uan_test_chirp_final01.csv`
+2. `uan_test_triangle_final01.csv`
+3. `uan_test_multisine_final01.csv`
+4. `uan_walk_air_train01.csv`
+5. `uan_walk_contact_train01.csv`
+6. `uan_walk_contact_final01.csv`
+7. `uan_loaded_contact_final01.csv` ถ้าปลอดภัย
+
+ทุกไฟล์ควรเก็บอย่างน้อย 3-5 นาที ยกเว้น chirp/triangle/multisine ที่ใช้ duration ตาม `command_pub_test.py` ได้
+
+---
+
+## Safety Checklist Before Hardware Runs
+
+- sethome ถูกต้องก่อน run
+- command ไม่ชน mechanical limit
+- frequency ไม่เกิน 2 Hz
+- command clip อยู่ใน safe range
+- มี emergency stop
+- motor ไม่ร้อนผิดปกติ
+- พื้นไม่ลื่นเกินไป
+- อย่ารัน publisher สองตัวพร้อมกันบน `/position_controller/commands`
+
